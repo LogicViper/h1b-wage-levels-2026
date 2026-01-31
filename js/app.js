@@ -17,8 +17,10 @@
             noData: '#cccccc'        // Gray - No data available
         },
         topoJsonUrl: 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json',
-        defaultSalary: 150000,
-        defaultOccupation: '15-1252' // Software Developers
+        defaultSalary: 120000,
+        defaultOccupation: '15-2051', // Data Scientists
+        defaultState: 'MA',
+        defaultCounty: 'Suffolk County'
     };
 
     // Application state
@@ -79,6 +81,14 @@
                 setupMapMouseLeave();
                 // Set up zoom control buttons
                 setupZoomControls();
+
+                // Handle pending default selection
+                if (state.pendingDefaultSelection) {
+                    const pd = state.pendingDefaultSelection;
+                    zoomToState(pd.state);
+                    highlightCountyByArea(pd.county, pd.state, pd.areaCode, true);
+                    state.pendingDefaultSelection = null;
+                }
             } catch (mapError) {
                 console.error('Map failed to load:', mapError);
                 mapContainer.innerHTML = `<div class="loading" style="color: #c41e3a;">
@@ -495,6 +505,43 @@
             // Highlight the county and lock tooltip
             highlightCountyByArea(countyName, state.selectedState, areaCode, true);
         });
+
+        // Apply Defaults if available
+        if (CONFIG.defaultState) {
+            const stateName = WageData.stateNames[CONFIG.defaultState];
+            if (stateName) {
+                // Set state
+                stateInput.value = stateName;
+                stateValue.value = CONFIG.defaultState;
+                state.selectedState = CONFIG.defaultState;
+
+                // Trigger updates
+                updateCountyDropdown();
+                updateCountyColors(); // This might be early if map isn't ready, but safe
+
+                // Set county if available
+                if (CONFIG.defaultCounty) {
+                    const countyOption = Array.from(countySelect.options)
+                        .find(opt => opt.text === CONFIG.defaultCounty);
+
+                    if (countyOption) {
+                        countySelect.value = countyOption.value;
+                        const [countyName, areaCode] = countyOption.value.split('|');
+                        state.selectedCounty = countyName;
+
+                        // We need to wait for map to load to highlight/zoom
+                        // We'll set a flag or try immediate if map is ready (checked in functions)
+                        // Ideally, we do this after map load, but this function runs before map load.
+                        // So let's store the intent and execute it in init() or after map load.
+                        state.pendingDefaultSelection = {
+                            state: CONFIG.defaultState,
+                            county: CONFIG.defaultCounty,
+                            areaCode: areaCode
+                        };
+                    }
+                }
+            }
+        }
     }
 
 
