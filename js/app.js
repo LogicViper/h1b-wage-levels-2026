@@ -70,6 +70,13 @@
             // Comparison Tool
             initComparisonTool();
 
+            // Load COL data for calculator
+            await SalaryCalculator.loadCOLData();
+
+            // Initialize new features
+            initSalaryCalculator();
+            initMultiCompare();
+
             // Load and render map
             await loadMap();
 
@@ -1347,7 +1354,121 @@
         }
     }
 
+    /**
+     * Initialize Salary Calculator
+     */
+    function initSalaryCalculator() {
+        updateSalaryGaps();
+
+        // Update when salary or occupation changes
+        document.getElementById('salary').addEventListener('input', debounce(updateSalaryGaps, 300));
+        document.getElementById('occupation').addEventListener('change', updateSalaryGaps);
+    }
+
+    /**
+     * Update salary gaps display
+     */
+    function updateSalaryGaps() {
+        const container = document.getElementById('salary-gaps-container');
+        if (!container) return;
+
+        // Get current area from map or default to a major city
+        const areaCode = state.selectedState ?
+            Object.keys(WageData.geography).find(code =>
+                WageData.geography[code].state === state.selectedState
+            ) : '41860'; // Default to San Francisco
+
+        const wages = WageData.getWages(areaCode, state.occupation);
+        if (!wages) {
+            container.innerHTML = '<p style="text-align: center; color: #9ca3af;">Select a location to see salary gaps</p>';
+            return;
+        }
+
+        const gapData = SalaryCalculator.calculateSalaryGaps(state.salary, wages);
+        if (!gapData) return;
+
+        const levelColors = ['#dc2626', '#f97316', '#facc15', '#22c55e', '#15803d'];
+        const levelLabels = ['Level 1', 'Level 2', 'Level 3', 'Level 4'];
+
+        let html = '<div class="salary-gaps">';
+
+        Object.keys(gapData.gaps).forEach((key, index) => {
+            const level = index + 1;
+            const gap = gapData.gaps[key];
+            const threshold = gapData.thresholds[key];
+            const isCurrent = gapData.currentLevel === level;
+            const isAchieved = gapData.currentLevel >= level;
+
+            const progress = isAchieved ? 100 : Math.min(100, (state.salary / threshold) * 100);
+
+            html += `
+                <div class="gap-card ${isCurrent ? 'current-level' : ''} ${isAchieved ? 'achieved' : ''}">
+                    <div class="gap-card-header">
+                        <span class="gap-card-title">${levelLabels[index]}</span>
+                        <span class="gap-card-status">${isAchieved ? '✅' : '🎯'}</span>
+                    </div>
+                    <div class="gap-card-amount">
+                        ${gap > 0 ? `+$${gap.toLocaleString()}` : 'Achieved'}
+                    </div>
+                    <div class="gap-card-label">
+                        Threshold: $${threshold.toLocaleString()}
+                    </div>
+                    <div class="gap-progress">
+                        <div class="gap-progress-bar" style="width: ${progress}%; background-color: ${levelColors[index]};"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    /**
+     * Initialize Multi-Location Comparison
+     */
+    function initMultiCompare() {
+        const selector = document.getElementById('multi-compare-selector');
+        const addBtn = document.getElementById('add-location-btn');
+
+        if (!selector || !addBtn) return;
+
+        // Populate selector with all areas
+        const areas = Object.entries(WageData.geography)
+            .map(([code, data]) => ({ code, name: data.areaName, state: data.state }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        areas.forEach(area => {
+            const option = new Option(area.name, area.code);
+            selector.add(option);
+        });
+
+        // Add location button handler
+        addBtn.addEventListener('click', () => {
+            const selectedCode = selector.value;
+            if (!selectedCode) {
+                alert('Please select a location');
+                return;
+            }
+
+            const areaData = WageData.geography[selectedCode];
+            if (areaData) {
+                const success = MultiCompare.addLocation(selectedCode, areaData.areaName, areaData.state);
+                if (success) {
+                    selector.value = ''; // Reset selector
+                }
+            }
+        });
+
+        // Initialize the comparison module
+        MultiCompare.init();
+    }
+
+    // Expose state to window for new features
+    window.appState = state;
+
     // Initialize when DOM is ready
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {

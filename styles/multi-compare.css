@@ -1,0 +1,284 @@
+/* ===== Multi-Location Comparison Styles ===== */
+
+.multi-compare-section {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+.multi-compare-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 2px solid var(--color-border);
+}
+
+.multi-compare-header h2 {
+    font-size: 1.5rem;
+    color: var(--color-text);
+    margin: 0;
+}
+
+.location-selector {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    flex-wrap: wrap;
+}
+
+.location-selector select {
+    flex: 1;
+    min-width: 250px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    font-family: inherit;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.add-location-btn {
+    padding: 10px 20px;
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.add-location-btn:hover {
+    background: var(--color-primary-dark);
+}
+
+.add-location-btn:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+}
+
+/* Comparison Table */
+.comparison-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.comparison-header h3 {
+    font-size: 1.25rem;
+    color: var(--color-text);
+    margin: 0;
+}
+
+.clear-btn {
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.clear-btn:hover {
+    background: var(--color-primary);
+    color: white;
+}
+
+.comparison-table-wrapper {
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.comparison-table thead {
+    background: #f9fafb;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.comparison-table th {
+    padding: var(--spacing-md);
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.comparison-table td {
+    padding: var(--spacing-md);
+    font-size: 0.875rem;
+    color: var(--color-text);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.comparison-row {
+    transition: background 0.15s;
+}
+
+.comparison-row:hover {
+    background: #f9fafb;
+}
+
+.comparison-row.best-option {
+    background: linear-gradient(90deg, #fef2f2 0%, #ffffff 100%);
+}
+
+.rank-cell {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--color-primary);
+}
+
+.location-cell {
+    min-width: 200px;
+}
+
+.location-cell strong {
+    color: var(--color-text);
+    font-size: 0.9375rem;
+}
+
+.location-cell small {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+}
+
+.level-cell {
+    text-align: center;
+}
+
+.level-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.gap-cell {
+    font-weight: 600;
+    color: var(--color-text-light);
+}
+
+.remove-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.remove-btn:hover {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+/* Mobile Responsive - Cards instead of table */
+@media (max-width: 992px) {
+    .comparison-table-wrapper {
+        border: none;
+    }
+
+    .comparison-table,
+    .comparison-table thead,
+    .comparison-table tbody,
+    .comparison-table tr,
+    .comparison-table th,
+    .comparison-table td {
+        display: block;
+    }
+
+    .comparison-table thead {
+        display: none;
+    }
+
+    .comparison-row {
+        margin-bottom: var(--spacing-md);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-md);
+        background: white;
+    }
+
+    .comparison-row.best-option {
+        border-color: var(--color-primary);
+        border-width: 2px;
+    }
+
+    .comparison-table td {
+        padding: var(--spacing-sm) 0;
+        border: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .comparison-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--color-text-light);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .rank-cell::before {
+        content: "Rank";
+    }
+
+    .location-cell {
+        min-width: auto;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .location-cell::before {
+        content: "Location";
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .level-cell::before {
+        content: "Your Level";
+    }
+
+    .gap-cell::before {
+        content: "Gap to Next";
+    }
+}
+
+/* Empty State */
+.comparison-table-wrapper p {
+    margin: 0;
+}

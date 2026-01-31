@@ -12,6 +12,8 @@
     <title>H1B Wage Levels 2026 | Wage-Weighted Selection Tool</title>
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/comp.css">
+    <link rel="stylesheet" href="styles/calculator.css">
+    <link rel="stylesheet" href="styles/multi-compare.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -142,6 +144,40 @@
             </div>
         </section>
 
+        <!-- Salary Adjustment Calculator -->
+        <section class="calculator-section" id="salary-calculator">
+            <div class="calculator-header">
+                <h2>💰 Salary Adjustment Calculator</h2>
+            </div>
+
+            <div id="salary-gaps-container">
+                <!-- Populated by JavaScript -->
+            </div>
+
+            <div id="col-comparison-container">
+                <!-- Populated by JavaScript -->
+            </div>
+        </section>
+
+        <!-- Multi-Location Comparison -->
+        <section class="multi-compare-section" id="multi-location-compare">
+            <div class="multi-compare-header">
+                <h2>📊 Multi-Location Comparison</h2>
+            </div>
+
+            <div class="location-selector">
+                <select id="multi-compare-selector" class="filter-select">
+                    <option value="">Select a location to add...</option>
+                </select>
+                <button id="add-location-btn" class="add-location-btn">Add to Comparison</button>
+            </div>
+
+            <div id="comparison-table-container">
+                <!-- Populated by JavaScript -->
+            </div>
+        </section>
+
+
         <footer class="footer">
             <p><strong>Data Source:</strong> OFLC, U.S. Department of Labor • Wage Year: July 2025 – June 2026</p>
 
@@ -151,6 +187,8 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/topojson-client@3"></script>
     <script src="js/data.js"></script>
+    <script src="js/calculator.js"></script>
+    <script src="js/multi-compare.js"></script>
     <script src="js/app.js"></script>
 </body>
 
