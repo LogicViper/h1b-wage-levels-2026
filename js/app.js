@@ -70,13 +70,6 @@
             // Comparison Tool
             initComparisonTool();
 
-            // Load COL data for calculator
-            await SalaryCalculator.loadCOLData();
-
-            // Initialize new features
-            initSalaryCalculator();
-            initMultiCompare();
-
             // Load and render map
             await loadMap();
 
@@ -85,6 +78,13 @@
 
             // Set up zoom control buttons
             setupZoomControls();
+
+            // Load COL data for calculator
+            await SalaryCalculator.loadCOLData();
+
+            // Initialize new features AFTER map and data are loaded
+            initSalaryCalculator();
+            initMultiCompare();
 
             console.log('Dashboard ready!');
         } catch (error) {
