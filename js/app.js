@@ -1405,13 +1405,13 @@
 
         const wages = WageData.getWages(areaCode, state.occupation);
 
-        // Update header text
-        const headerLocation = document.getElementById('salary-calc-location');
+        // Update header text in the new span
+        const headerLocation = document.getElementById('salary-header-county');
         if (headerLocation) {
             if (state.currentAreaName) {
-                headerLocation.innerHTML = `Based on <strong>${state.currentAreaName}</strong>`;
+                headerLocation.innerHTML = `- ${state.currentAreaName}`;
             } else {
-                headerLocation.textContent = 'Based on your selected location above';
+                headerLocation.textContent = '';
             }
         }
 
@@ -1423,7 +1423,7 @@
         const gapData = SalaryCalculator.calculateSalaryGaps(state.salary, wages);
         if (!gapData) return;
 
-        const levelColors = ['#dc2626', '#f97316', '#facc15', '#22c55e', '#15803d'];
+        const levelColors = ['#dc2626', '#f97316', '#facc15', '#22c56e', '#15803d'];
         const levelLabels = ['Level 1', 'Level 2', 'Level 3', 'Level 4'];
 
         let html = '<div class="salary-gaps">';
@@ -1465,12 +1465,13 @@
      * Initialize Multi-Location Comparison
      */
     function initMultiCompare() {
+        const stateSelector = document.getElementById('multi-state-selector');
         const selector = document.getElementById('multi-compare-selector');
         const addBtn = document.getElementById('add-location-btn');
         const multiOccupation = document.getElementById('multi-occupation');
         const multiSalary = document.getElementById('multi-salary');
 
-        if (!selector || !addBtn || !multiOccupation || !multiSalary) return;
+        if (!selector || !addBtn || !multiOccupation || !multiSalary || !stateSelector) return;
 
         // Populate occupation dropdown (independent from main)
         const occupations = WageData.getOccupations();
@@ -1480,15 +1481,45 @@
         });
         multiOccupation.value = '15-1252'; // Default to Software Developers
 
-        // Populate selector with all areas
-        const areas = Object.entries(WageData.geography)
-            .map(([code, data]) => ({ code, name: data.areaName, state: data.state }))
-            .sort((a, b) => a.name.localeCompare(b.name));
+        // Populate State Selector
+        // Get unique states from geography
+        const states = new Set();
+        Object.values(WageData.geography).forEach(geo => states.add(geo.state));
 
-        areas.forEach(area => {
-            const option = new Option(area.name, area.code);
-            selector.add(option);
+        const sortedStates = Array.from(states).sort().map(abbr => ({
+            abbr: abbr,
+            name: WageData.stateNames[abbr] || abbr
+        }));
+
+        sortedStates.forEach(state => {
+            const option = new Option(state.name, state.abbr);
+            stateSelector.add(option);
         });
+
+        // State selection change handler
+        stateSelector.addEventListener('change', () => {
+            const selectedState = stateSelector.value;
+            // Clear county selector
+            selector.innerHTML = '<option value="">Select County...</option>';
+            selector.disabled = !selectedState;
+
+            if (selectedState) {
+                // Filter areas by state
+                const areas = Object.entries(WageData.geography)
+                    .filter(([_, data]) => data.state === selectedState)
+                    .map(([code, data]) => ({ code, name: data.areaName }))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                areas.forEach(area => {
+                    const option = new Option(area.name, area.code);
+                    selector.add(option);
+                });
+            }
+        });
+
+        // Update auto-update logic to use updateAll
+        multiSalary.addEventListener('input', debounce(() => MultiCompare.updateAll(), 300));
+        multiOccupation.addEventListener('change', () => MultiCompare.updateAll());
 
         // Add location button handler
         addBtn.addEventListener('click', () => {
@@ -1509,10 +1540,6 @@
                 }
             }
         });
-
-        // Update comparison when salary or occupation changes
-        multiSalary.addEventListener('input', debounce(() => MultiCompare.updateAll(), 300));
-        multiOccupation.addEventListener('change', () => MultiCompare.updateAll());
 
         // Initialize the comparison module
         MultiCompare.init();

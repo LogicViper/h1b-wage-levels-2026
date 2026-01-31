@@ -147,10 +147,9 @@
         <!-- Salary Adjustment Calculator -->
         <section class="calculator-section" id="salary-calculator">
             <div class="calculator-header">
-                <h2>💰 Salary Adjustment Calculator</h2>
-                <p id="salary-calc-location" style="text-align: center; color: #9ca3af; margin-top: 8px;">Based on your
-                    selected location above
-                </p>
+                <h2>💰 Salary Adjustment Calculator <span id="salary-header-county"
+                        style="font-weight: 400; font-size: 0.9em; color: #6b7280; display: block; margin-top: 4px;"></span>
+                </h2>
             </div>
 
             <div id="salary-gaps-container">
@@ -184,9 +183,13 @@
                 </div>
             </div>
 
-            <div class="location-selector">
-                <select id="multi-compare-selector" class="filter-select">
-                    <option value="">Select a location to add...</option>
+            <div class="location-selector"
+                style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 12px; align-items: center;">
+                <select id="multi-state-selector" class="filter-select">
+                    <option value="">Select State...</option>
+                </select>
+                <select id="multi-compare-selector" class="filter-select" disabled>
+                    <option value="">Select County...</option>
                 </select>
                 <button id="add-location-btn" class="add-location-btn">Add to Comparison</button>
             </div>
