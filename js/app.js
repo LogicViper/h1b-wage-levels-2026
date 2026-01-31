@@ -72,19 +72,24 @@
             // Comparison Tool
             initComparisonTool();
 
-            // Load and render map
-            await loadMap();
-
-            // Set up map container mouse leave
-            setupMapMouseLeave();
-
-            // Set up zoom control buttons
-            setupZoomControls();
+            // Load and render map (don't block other features if this fails)
+            try {
+                await loadMap();
+                // Set up map container mouse leave
+                setupMapMouseLeave();
+                // Set up zoom control buttons
+                setupZoomControls();
+            } catch (mapError) {
+                console.error('Map failed to load:', mapError);
+                mapContainer.innerHTML = `<div class="loading" style="color: #c41e3a;">
+                    Map unavailable. Other features still work below.
+                </div>`;
+            }
 
             // Load COL data for calculator
             await SalaryCalculator.loadCOLData();
 
-            // Initialize new features AFTER map and data are loaded
+            // Initialize new features (these work independently of the map)
             initSalaryCalculator();
             initMultiCompare();
 
