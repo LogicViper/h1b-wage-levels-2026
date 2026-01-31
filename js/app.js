@@ -1239,6 +1239,10 @@
             }
         });
 
+        // Set Defaults: Boston (14460) vs San Francisco (41860)
+        locA.value = '14460';
+        locB.value = '41860';
+
         // Event Listeners
         locA.addEventListener('change', updateComparison);
         locB.addEventListener('change', updateComparison);
@@ -1246,6 +1250,9 @@
 
         // Show section
         compSection.classList.remove('hidden');
+
+        // Initial Update
+        updateComparison();
     }
 
     function updateComparison() {
