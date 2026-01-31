@@ -622,24 +622,34 @@
         // Show details with lock if specified
         showCountyDetails(countyName, stateAbbr, areaCode, wages, level, areaInfo, lockTooltip);
 
-        // Find and highlight matching counties
+        // Find and highlight ONLY the specific county selected, not the entire metro area
         if (!state.svg) return;
 
+        // Normalize the county name for comparison
+        const normalizeCountyName = (name) => {
+            return name.toLowerCase()
+                .replace(' county', '')
+                .replace(' parish', '')
+                .replace(' borough', '')
+                .replace(' census area', '')
+                .replace(' city', '')
+                .replace(/\./g, '')
+                .replace(/'/g, '')
+                .replace(/ñ/g, 'n')
+                .trim();
+        };
+
+        const targetCountyNorm = normalizeCountyName(countyName);
+
         state.svg.selectAll('.county').each(function (d) {
-            const fipsState = d.id.substring(0, 2);
+            const fipsState = String(d.id).padStart(5, '0').substring(0, 2);
             const fipsStateAbbr = WageData.fipsToState[fipsState];
 
             if (fipsStateAbbr === stateAbbr) {
                 const cName = d.properties?.name;
-                if (cName) {
-                    const key1 = `${cName} County|${stateAbbr}`;
-                    const key2 = `${cName}|${stateAbbr}`;
-                    const countyArea = state.countyToArea[key1] || state.countyToArea[key2];
-
-                    if (countyArea === areaCode) {
-                        d3.select(this).classed('highlighted', true);
-                        state.highlightedCounty = d3.select(this);
-                    }
+                if (cName && normalizeCountyName(cName) === targetCountyNorm) {
+                    d3.select(this).classed('highlighted', true);
+                    state.highlightedCounty = d3.select(this);
                 }
             }
         });

@@ -346,9 +346,8 @@ body {
 }
 
 .county.highlighted {
-    stroke: var(--color-primary) !important;
-    stroke-width: 2px !important;
-    filter: drop-shadow(0 0 4px rgba(220, 38, 38, 0.6));
+    stroke: #000000 !important;
+    stroke-width: 2.5px !important;
 }
 
 .state-border {
