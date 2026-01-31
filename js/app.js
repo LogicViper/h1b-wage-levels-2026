@@ -31,10 +31,13 @@
         countyToArea: {},      // Map "CountyName|State" to OFLC area code
         stateCounties: {},     // Map state abbr to list of counties
         highlightedCounty: null,
+        tooltipLocked: false,  // Whether tooltip is locked (requires X to dismiss)
         svg: null,
         tooltip: null,
         projection: null,
-        path: null
+        path: null,
+        zoom: null,            // D3 zoom behavior
+        currentTransform: null // Current zoom transform
     };
 
     /**
@@ -72,6 +75,12 @@
             // Set up event listeners
             setupEventListeners();
 
+            // Set up map container mouse leave
+            setupMapMouseLeave();
+
+            // Set up zoom control buttons
+            setupZoomControls();
+
             console.log('Dashboard ready!');
         } catch (error) {
             console.error('Failed to initialize:', error);
@@ -91,9 +100,37 @@
         if (!WageData.counties) return;
 
         for (const [key, data] of Object.entries(WageData.counties)) {
-            // Map county+state to area code
+            // Map county+state to area code - Standard Match
             const mapKey = `${data.county}|${data.state}`;
             state.countyToArea[mapKey] = data.area;
+
+            // Normalized Match (lowercase, no punctuation, no common suffixes)
+            // This handles mismatches like "St." vs "Saint", "O'Brien" vs "Obrien", etc.
+            const cleanCounty = data.county.toLowerCase()
+                .replace(' county', '')
+                .replace(' parish', '')
+                .replace(' borough', '')
+                .replace(' census area', '')
+                .replace(' city', '') // Handle independent cities
+                .replace(/\./g, '')
+                .replace(/'/g, '')
+                .trim();
+
+            const mapKeyNorm = `${cleanCounty}|${data.state}`;
+            if (!state.countyToArea[mapKeyNorm]) {
+                state.countyToArea[mapKeyNorm] = data.area;
+            }
+
+            // Also handle "Saint" <-> "St" conversion
+            if (cleanCounty.includes('st ')) {
+                const saintCounty = cleanCounty.replace('st ', 'saint ');
+                const mapKeySaint = `${saintCounty}|${data.state}`;
+                state.countyToArea[mapKeySaint] = data.area;
+            } else if (cleanCounty.includes('saint ')) {
+                const stCounty = cleanCounty.replace('saint ', 'st ');
+                const mapKeySt = `${stCounty}|${data.state}`;
+                state.countyToArea[mapKeySt] = data.area;
+            }
 
             // Group counties by state
             if (!state.stateCounties[data.state]) {
@@ -118,53 +155,269 @@
      * Initialize filter dropdowns with real OFLC occupation data
      */
     function initFilters() {
-        const occupationSelect = document.getElementById('occupation');
+        const occupationInput = document.getElementById('occupation');
+        const occupationValue = document.getElementById('occupation-value');
+        const occupationResults = document.getElementById('occupation-results');
 
-        // Clear existing options
-        occupationSelect.innerHTML = '<option value="">Select Occupation...</option>';
-
-        // Add occupations from OFLC data
-        WageData.occupations.forEach(occ => {
-            const option = document.createElement('option');
-            option.value = occ.code;
-            option.textContent = `${occ.title} (${occ.code})`;
-            occupationSelect.appendChild(option);
-        });
+        // Build occupation list for searching
+        const occupationsList = WageData.occupations.map(occ => ({
+            code: occ.code,
+            title: occ.title,
+            display: `${occ.title} (${occ.code})`
+        }));
 
         // Set default occupation
-        occupationSelect.value = CONFIG.defaultOccupation;
+        const defaultOcc = occupationsList.find(o => o.code === CONFIG.defaultOccupation);
+        if (defaultOcc) {
+            occupationInput.value = defaultOcc.display;
+            occupationValue.value = defaultOcc.code;
+        }
         state.occupation = CONFIG.defaultOccupation;
 
         // Set default salary
         document.getElementById('salary').value = CONFIG.defaultSalary.toLocaleString();
+
+        let debounceTimer;
+
+        // Occupation search input handler
+        occupationInput.addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            const query = e.target.value.trim().toLowerCase();
+
+            if (query.length === 0) {
+                // Show all occupations when cleared
+                occupationResults.innerHTML = occupationsList.map(o => `
+                    <div class="search-result-item" data-code="${o.code}" data-display="${o.display}">
+                        <strong>${o.title}</strong> <small>(${o.code})</small>
+                    </div>
+                `).join('');
+                occupationResults.style.display = 'block';
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                // Filter occupations by title or code
+                const results = occupationsList.filter(o =>
+                    o.title.toLowerCase().includes(query) ||
+                    o.code.toLowerCase().includes(query)
+                );
+
+                if (results.length === 0) {
+                    occupationResults.innerHTML = '<div class="search-result-item no-results">No occupations found</div>';
+                } else {
+                    occupationResults.innerHTML = results.map(o => `
+                        <div class="search-result-item" data-code="${o.code}" data-display="${o.display}">
+                            <strong>${o.title}</strong> <small>(${o.code})</small>
+                        </div>
+                    `).join('');
+                }
+
+                occupationResults.style.display = 'block';
+            }, 100);
+        });
+
+        // Handle occupation result selection
+        occupationResults.addEventListener('click', (e) => {
+            const item = e.target.closest('.search-result-item');
+            if (!item || item.classList.contains('no-results')) return;
+
+            const code = item.dataset.code;
+            const display = item.dataset.display;
+
+            occupationInput.value = display;
+            occupationValue.value = code;
+            occupationResults.style.display = 'none';
+
+            // Update state and refresh map
+            state.occupation = code;
+            updateCountyColors();
+
+            // Update tooltip if a county is selected
+            if (state.highlightedCounty && state.selectedCounty) {
+                const countySelect = document.getElementById('county-filter');
+                const value = countySelect.value;
+                if (value) {
+                    const [countyName, areaCode] = value.split('|');
+                    const wages = WageData.getWages(areaCode, state.occupation);
+                    const level = wages ? WageData.calculateWageLevel(state.salary, areaCode, state.occupation) : -1;
+                    const areaInfo = WageData.getAreaInfo(areaCode);
+                    showCountyDetails(countyName, state.selectedState, areaCode, wages, level, areaInfo, state.tooltipLocked);
+                }
+            }
+        });
+
+        // Close results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#occupation') && !e.target.closest('#occupation-results')) {
+                occupationResults.style.display = 'none';
+            }
+        });
+
+        // Allow keyboard navigation
+        occupationInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                occupationResults.style.display = 'none';
+            }
+        });
+
+        // Show all occupations on focus
+        occupationInput.addEventListener('focus', (e) => {
+            occupationResults.innerHTML = occupationsList.map(o => `
+                <div class="search-result-item" data-code="${o.code}" data-display="${o.display}">
+                    <strong>${o.title}</strong> <small>(${o.code})</small>
+                </div>
+            `).join('');
+            occupationResults.style.display = 'block';
+        });
     }
 
     /**
      * Initialize state and county dropdown hierarchy
      */
     function initStateCountyDropdowns() {
-        const stateSelect = document.getElementById('state-filter');
+        const stateInput = document.getElementById('state-filter');
+        const stateValue = document.getElementById('state-filter-value');
+        const stateResults = document.getElementById('state-results');
+        const stateClearBtn = document.getElementById('state-clear');
         const countySelect = document.getElementById('county-filter');
+        const countyClearBtn = document.getElementById('county-clear');
 
-        if (!stateSelect || !countySelect) return;
+        if (!stateInput || !countySelect) return;
 
-        // Populate state dropdown
-        stateSelect.innerHTML = '<option value="">(All States)</option>';
+        // Build state list for searching
+        const statesList = Object.keys(state.stateCounties).sort().map(abbr => ({
+            abbr: abbr,
+            name: WageData.stateNames[abbr] || abbr
+        }));
 
-        // Get unique states and sort them
-        const states = Object.keys(state.stateCounties).sort();
-        states.forEach(st => {
-            const option = document.createElement('option');
-            option.value = st;
-            option.textContent = WageData.stateNames[st] || st;
-            stateSelect.appendChild(option);
+        // State clear button handler - clears state and returns to full country view
+        if (stateClearBtn) {
+            stateClearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                stateInput.value = '';
+                stateValue.value = '';
+                state.selectedState = '';
+                state.selectedCounty = '';
+                unlockTooltip();
+                clearHighlight();
+                updateCountyDropdown();
+                updateCountyColors();
+                resetZoom();
+
+                // Clear county search too
+                const countySearch = document.getElementById('county-search');
+                if (countySearch) countySearch.value = '';
+            });
+        }
+
+        // County clear button handler - clears county and returns to state view
+        if (countyClearBtn) {
+            countyClearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                countySelect.value = '';
+                state.selectedCounty = '';
+                unlockTooltip();
+                clearHighlight();
+
+                // Clear county search too
+                const countySearch = document.getElementById('county-search');
+                if (countySearch) countySearch.value = '';
+            });
+        }
+
+        let debounceTimer;
+
+        // State search input handler
+        stateInput.addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            const query = e.target.value.trim().toLowerCase();
+
+            if (query.length === 0) {
+                stateResults.style.display = 'none';
+                stateResults.innerHTML = '';
+                // Clear state selection
+                stateValue.value = '';
+                state.selectedState = '';
+                state.selectedCounty = '';
+                unlockTooltip();
+                updateCountyDropdown();
+                updateCountyColors();
+                resetZoom();
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                // Filter states by name or abbreviation
+                const results = statesList.filter(s =>
+                    s.name.toLowerCase().includes(query) ||
+                    s.abbr.toLowerCase().includes(query)
+                ).slice(0, 10);
+
+                if (results.length === 0) {
+                    stateResults.innerHTML = '<div class="search-result-item no-results">No states found</div>';
+                } else {
+                    stateResults.innerHTML = results.map(s => `
+                        <div class="search-result-item" data-abbr="${s.abbr}" data-name="${s.name}">
+                            <strong>${s.name}</strong> <small>(${s.abbr})</small>
+                        </div>
+                    `).join('');
+                }
+
+                stateResults.style.display = 'block';
+            }, 100);
         });
 
-        // State change handler
-        stateSelect.addEventListener('change', (e) => {
-            state.selectedState = e.target.value;
+        // Handle state result selection
+        stateResults.addEventListener('click', (e) => {
+            const item = e.target.closest('.search-result-item');
+            if (!item || item.classList.contains('no-results')) return;
+
+            const abbr = item.dataset.abbr;
+            const name = item.dataset.name;
+
+            stateInput.value = name;
+            stateValue.value = abbr;
+            stateResults.style.display = 'none';
+
+            // Update state
+            state.selectedState = abbr;
+            state.selectedCounty = '';
+            unlockTooltip();
             updateCountyDropdown();
             updateCountyColors();
+            zoomToState(abbr);
+        });
+
+        // Close results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.filter-group.search-container') ||
+                (e.target.closest('.filter-group.search-container') &&
+                    !e.target.closest('#state-filter') &&
+                    !e.target.closest('#state-results'))) {
+                if (!e.target.closest('.filter-group.search-container') ||
+                    e.target.id === 'county-search') {
+                    stateResults.style.display = 'none';
+                }
+            }
+        });
+
+        // Allow keyboard navigation
+        stateInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                stateResults.style.display = 'none';
+            }
+        });
+
+        // Show all states on focus if empty
+        stateInput.addEventListener('focus', (e) => {
+            if (e.target.value.trim() === '') {
+                stateResults.innerHTML = statesList.map(s => `
+                    <div class="search-result-item" data-abbr="${s.abbr}" data-name="${s.name}">
+                        <strong>${s.name}</strong> <small>(${s.abbr})</small>
+                    </div>
+                `).join('');
+                stateResults.style.display = 'block';
+            }
         });
 
         // County change handler
@@ -172,6 +425,7 @@
             const value = e.target.value;
             if (!value) {
                 state.selectedCounty = '';
+                unlockTooltip();
                 clearHighlight();
                 return;
             }
@@ -180,10 +434,11 @@
             const [countyName, areaCode] = value.split('|');
             state.selectedCounty = countyName;
 
-            // Highlight the county
-            highlightCountyByArea(countyName, state.selectedState, areaCode);
+            // Highlight the county and lock tooltip
+            highlightCountyByArea(countyName, state.selectedState, areaCode, true);
         });
     }
+
 
     /**
      * Update county dropdown based on selected state
@@ -258,8 +513,9 @@
             searchInput.value = `${county}, ${stateAbbr}`;
             searchResults.style.display = 'none';
 
-            // Update dropdowns to match
-            document.getElementById('state-filter').value = stateAbbr;
+            // Update state search input to match
+            document.getElementById('state-filter').value = WageData.stateNames[stateAbbr] || stateAbbr;
+            document.getElementById('state-filter-value').value = stateAbbr;
             state.selectedState = stateAbbr;
             updateCountyDropdown();
 
@@ -267,8 +523,9 @@
             const countySelect = document.getElementById('county-filter');
             countySelect.value = `${county}|${areaCode}`;
 
-            // Highlight the county on the map
-            highlightCountyByArea(county, stateAbbr, areaCode);
+            // Zoom to state and highlight the county with locked tooltip
+            zoomToState(stateAbbr);
+            highlightCountyByArea(county, stateAbbr, areaCode, true);
         });
 
         // Close results when clicking outside
@@ -287,20 +544,30 @@
     }
 
     /**
+     * Unlock tooltip (allow hover again)
+     */
+    function unlockTooltip() {
+        state.tooltipLocked = false;
+        state.tooltip.classList.remove('locked');
+    }
+
+    /**
      * Clear county highlight
      */
     function clearHighlight() {
-        if (state.highlightedCounty) {
-            state.highlightedCounty.classed('highlighted', false);
-            state.highlightedCounty = null;
+        // Clear ALL highlighted counties, not just the one in state
+        if (state.svg) {
+            state.svg.selectAll('.county.highlighted').classed('highlighted', false);
         }
+        state.highlightedCounty = null;
         state.tooltip.classList.remove('visible');
+        unlockTooltip();
     }
 
     /**
      * Highlight a county on the map by area code
      */
-    function highlightCountyByArea(countyName, stateAbbr, areaCode) {
+    function highlightCountyByArea(countyName, stateAbbr, areaCode, lockTooltip = false) {
         clearHighlight();
 
         // Get wage data for this area
@@ -308,8 +575,8 @@
         const level = wages ? WageData.calculateWageLevel(state.salary, areaCode, state.occupation) : -1;
         const areaInfo = WageData.getAreaInfo(areaCode);
 
-        // Show details
-        showCountyDetails(countyName, stateAbbr, areaCode, wages, level, areaInfo);
+        // Show details with lock if specified
+        showCountyDetails(countyName, stateAbbr, areaCode, wages, level, areaInfo, lockTooltip);
 
         // Find and highlight matching counties
         if (!state.svg) return;
@@ -337,7 +604,7 @@
     /**
      * Show detailed info for a selected county
      */
-    function showCountyDetails(countyName, stateAbbr, areaCode, wages, level, areaInfo) {
+    function showCountyDetails(countyName, stateAbbr, areaCode, wages, level, areaInfo, lockTooltip = false) {
         const stateName = WageData.stateNames[stateAbbr] || stateAbbr;
 
         const levelLabels = ['Below Level 1', 'Level 1', 'Level 2', 'Level 3', 'Level 4'];
@@ -350,9 +617,14 @@
         ];
         const levelStatus = ['❌ Low priority', '⚠️ Low-Medium', '⚠️ Medium', '✅ Good chance', '✅ Best chance'];
 
+        // Add close button if locked
+        const closeButton = lockTooltip ?
+            '<button class="tooltip-close" onclick="window.closeLockedTooltip()" title="Close">✕</button>' : '';
+
         let content;
         if (wages && level >= 0) {
             content = `
+                ${closeButton}
                 <div class="tooltip-title">${countyName}, ${stateName}</div>
                 <div class="tooltip-content">
                     <strong>Area:</strong> ${areaInfo?.areaName || 'N/A'}<br>
@@ -369,6 +641,7 @@
             `;
         } else {
             content = `
+                ${closeButton}
                 <div class="tooltip-title">${countyName}, ${stateName}</div>
                 <div class="tooltip-content">
                     <strong>Area:</strong> ${areaInfo?.areaName || 'N/A'}<br><br>
@@ -379,12 +652,166 @@
 
         // Position tooltip in a visible spot
         const mapContainer = document.getElementById('map');
-        const rect = mapContainer.getBoundingClientRect();
 
         state.tooltip.innerHTML = content;
-        state.tooltip.style.left = `${20}px`;
-        state.tooltip.style.top = `${20}px`;
+        state.tooltip.style.left = `20px`;
+        state.tooltip.style.top = `20px`;
         state.tooltip.classList.add('visible');
+
+        if (lockTooltip) {
+            state.tooltipLocked = true;
+            state.tooltip.classList.add('locked');
+        }
+    }
+
+    // Global function to close locked tooltip
+    window.closeLockedTooltip = function () {
+        state.selectedCounty = '';
+
+        // Reset county dropdown
+        const countySelect = document.getElementById('county-filter');
+        if (countySelect) countySelect.value = '';
+
+        // Clear search input
+        const searchInput = document.getElementById('county-search');
+        if (searchInput) searchInput.value = '';
+
+        clearHighlight();
+    };
+
+    /**
+     * Set up map container mouse leave handler
+     */
+    function setupMapMouseLeave() {
+        const mapContainer = document.getElementById('map');
+
+        mapContainer.addEventListener('mouseleave', () => {
+            // Only hide tooltip if not locked
+            if (!state.tooltipLocked) {
+                state.tooltip.classList.remove('visible');
+            }
+        });
+    }
+
+    /**
+     * Zoom to fit a specific state
+     */
+    function zoomToState(stateAbbr) {
+        if (!state.svg || !state.countyData) return;
+
+        const stateFips = Object.entries(WageData.fipsToState).find(([fips, abbr]) => abbr === stateAbbr)?.[0];
+        if (!stateFips) return;
+
+        // Get all counties in this state
+        const counties = topojson.feature(state.countyData, state.countyData.objects.counties);
+        const stateCounties = counties.features.filter(d => d.id.substring(0, 2) === stateFips);
+
+        if (stateCounties.length === 0) return;
+
+        // Calculate bounds
+        const bounds = state.path.bounds({
+            type: 'FeatureCollection',
+            features: stateCounties
+        });
+
+        const mapContainer = document.getElementById('map');
+        const width = mapContainer.clientWidth;
+        const height = mapContainer.clientHeight || 500;
+
+        const [[x0, y0], [x1, y1]] = bounds;
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const x = (x0 + x1) / 2;
+        const y = (y0 + y1) / 2;
+
+        // Calculate scale with padding
+        const scale = Math.min(8, 0.85 / Math.max(dx / width, dy / height));
+        const translate = [width / 2 - scale * x, height / 2 - scale * y];
+
+        // Apply zoom transform
+        const transform = d3.zoomIdentity
+            .translate(translate[0], translate[1])
+            .scale(scale);
+
+        state.svg.transition()
+            .duration(750)
+            .call(state.zoom.transform, transform);
+
+        state.currentTransform = transform;
+
+        // Add county labels after zoom
+        setTimeout(() => {
+            addCountyLabels(stateAbbr, stateCounties, scale);
+        }, 800);
+    }
+
+    /**
+     * Add county name labels for a zoomed state
+     * NOTE: Disabled as per user request - labels were cluttering the view
+     */
+    function addCountyLabels(stateAbbr, stateCounties, scale) {
+        // Labels disabled - just remove any existing labels
+        if (state.svg) {
+            state.svg.selectAll('.county-label').remove();
+            state.svg.selectAll('.county-labels').remove();
+        }
+        return;
+    }
+
+    /**
+     * Reset zoom to initial view
+     */
+    function resetZoom() {
+        if (!state.svg) return;
+
+        // Remove county labels
+        state.svg.selectAll('.county-label').remove();
+        state.svg.selectAll('.county-labels').remove();
+
+        state.svg.transition()
+            .duration(750)
+            .call(state.zoom.transform, d3.zoomIdentity);
+
+        state.currentTransform = null;
+    }
+
+    /**
+     * Zoom in by a fixed factor
+     */
+    function zoomIn() {
+        if (!state.svg || !state.zoom) return;
+        state.svg.transition()
+            .duration(300)
+            .call(state.zoom.scaleBy, 1.5);
+    }
+
+    /**
+     * Zoom out by a fixed factor
+     */
+    function zoomOut() {
+        if (!state.svg || !state.zoom) return;
+        state.svg.transition()
+            .duration(300)
+            .call(state.zoom.scaleBy, 0.67);
+    }
+
+    /**
+     * Set up zoom control buttons
+     */
+    function setupZoomControls() {
+        const zoomInBtn = document.getElementById('zoom-in');
+        const zoomOutBtn = document.getElementById('zoom-out');
+        const zoomResetBtn = document.getElementById('zoom-reset');
+
+        if (zoomInBtn) {
+            zoomInBtn.addEventListener('click', zoomIn);
+        }
+        if (zoomOutBtn) {
+            zoomOutBtn.addEventListener('click', zoomOut);
+        }
+        if (zoomResetBtn) {
+            zoomResetBtn.addEventListener('click', resetZoom);
+        }
     }
 
     /**
@@ -428,6 +855,9 @@
             .attr('viewBox', `0 0 ${width} ${height}`)
             .attr('preserveAspectRatio', 'xMidYMid meet');
 
+        // Create main group for zooming
+        const g = state.svg.append('g').attr('class', 'map-group');
+
         // Create projection
         state.projection = d3.geoAlbersUsa()
             .scale(width * 1.1)
@@ -435,11 +865,28 @@
 
         state.path = d3.geoPath().projection(state.projection);
 
+        // Set up zoom behavior
+        state.zoom = d3.zoom()
+            .scaleExtent([1, 12])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+                state.currentTransform = event.transform;
+
+                // Adjust stroke width based on zoom
+                const strokeWidth = 0.3 / event.transform.k;
+                g.selectAll('.county').style('stroke-width', `${strokeWidth}px`);
+
+                // Adjust state border stroke
+                g.selectAll('.state-border').style('stroke-width', `${1 / event.transform.k}px`);
+            });
+
+        state.svg.call(state.zoom);
+
         // Get features
         const counties = topojson.feature(us, us.objects.counties);
 
         // Draw counties
-        state.svg.append('g')
+        g.append('g')
             .attr('class', 'counties')
             .selectAll('path')
             .data(counties.features)
@@ -455,7 +902,7 @@
             .on('click', handleCountyClick);
 
         // Draw state borders
-        state.svg.append('path')
+        g.append('path')
             .datum(topojson.mesh(us, us.objects.states, (a, b) => a !== b))
             .attr('class', 'state-border')
             .attr('d', state.path);
@@ -483,7 +930,17 @@
         // Find the OFLC area for this county
         const key1 = `${countyName} County|${stateAbbr}`;
         const key2 = `${countyName}|${stateAbbr}`;
-        const areaCode = state.countyToArea[key1] || state.countyToArea[key2];
+        let areaCode = state.countyToArea[key1] || state.countyToArea[key2];
+
+        // If not found, try normalized lookup
+        if (!areaCode) {
+            const cleanName = countyName.toLowerCase()
+                .replace(/\./g, '')
+                .replace(/'/g, '')
+                .trim();
+            const keyNorm = `${cleanName}|${stateAbbr}`;
+            areaCode = state.countyToArea[keyNorm];
+        }
 
         if (!areaCode) return CONFIG.colors.noData;
 
@@ -516,17 +973,36 @@
      * Handle mouse over county
      */
     function handleMouseOver(event, d) {
-        const tooltip = state.tooltip;
+        // Don't show hover tooltip if tooltip is locked
+        if (state.tooltipLocked) return;
+
         const fips = d.id;
         const fipsState = fips.substring(0, 2);
         const stateAbbr = WageData.fipsToState[fipsState];
+
+        // Don't show tooltip for counties outside selected state
+        if (state.selectedState && stateAbbr !== state.selectedState) {
+            return;
+        }
+
+        const tooltip = state.tooltip;
         const stateName = WageData.stateNames[stateAbbr] || 'Unknown';
         const countyName = d.properties?.name || `County ${fips}`;
 
         // Find OFLC area
         const key1 = `${countyName} County|${stateAbbr}`;
         const key2 = `${countyName}|${stateAbbr}`;
-        const areaCode = state.countyToArea[key1] || state.countyToArea[key2];
+        let areaCode = state.countyToArea[key1] || state.countyToArea[key2];
+
+        // If not found, try normalized lookup
+        if (!areaCode) {
+            const cleanName = countyName.toLowerCase()
+                .replace(/\./g, '')
+                .replace(/'/g, '')
+                .trim();
+            const keyNorm = `${cleanName}|${stateAbbr}`;
+            areaCode = state.countyToArea[keyNorm];
+        }
 
         const wages = areaCode ? WageData.getWages(areaCode, state.occupation) : null;
         const level = wages ? WageData.calculateWageLevel(state.salary, areaCode, state.occupation) : -1;
@@ -573,6 +1049,9 @@
      * Handle mouse move
      */
     function handleMouseMove(event) {
+        // Don't move tooltip if locked
+        if (state.tooltipLocked) return;
+
         const tooltip = state.tooltip;
         const mapContainer = document.getElementById('map');
         const rect = mapContainer.getBoundingClientRect();
@@ -597,8 +1076,8 @@
      * Handle mouse out
      */
     function handleMouseOut() {
-        // Only hide if not a selected county
-        if (!state.highlightedCounty) {
+        // Only hide if not locked
+        if (!state.tooltipLocked && !state.highlightedCounty) {
             state.tooltip.classList.remove('visible');
         }
     }
@@ -617,15 +1096,20 @@
         const areaCode = state.countyToArea[key1] || state.countyToArea[key2];
 
         if (areaCode) {
-            // Update dropdowns
-            document.getElementById('state-filter').value = stateAbbr;
+            // Update state search input
+            document.getElementById('state-filter').value = WageData.stateNames[stateAbbr] || stateAbbr;
+            document.getElementById('state-filter-value').value = stateAbbr;
             state.selectedState = stateAbbr;
             updateCountyDropdown();
 
             const countySelect = document.getElementById('county-filter');
             countySelect.value = `${countyName} County|${areaCode}`;
 
-            highlightCountyByArea(countyName, stateAbbr, areaCode);
+            // Zoom to state if not already
+            zoomToState(stateAbbr);
+
+            // Highlight with locked tooltip
+            highlightCountyByArea(countyName, stateAbbr, areaCode, true);
         }
     }
 
@@ -650,30 +1134,18 @@
             }
         });
 
-        // Occupation select
-        document.getElementById('occupation').addEventListener('change', (e) => {
-            state.occupation = e.target.value;
-            updateCountyColors();
-
-            // Update tooltip if a county is selected
-            if (state.highlightedCounty && state.selectedCounty) {
-                const countySelect = document.getElementById('county-filter');
-                const value = countySelect.value;
-                if (value) {
-                    const [countyName, areaCode] = value.split('|');
-                    const wages = WageData.getWages(areaCode, state.occupation);
-                    const level = wages ? WageData.calculateWageLevel(state.salary, areaCode, state.occupation) : -1;
-                    const areaInfo = WageData.getAreaInfo(areaCode);
-                    showCountyDetails(countyName, state.selectedState, areaCode, wages, level, areaInfo);
-                }
-            }
-        });
+        // Note: Occupation input is handled in initFilters()
 
         // Handle window resize
         window.addEventListener('resize', debounce(() => {
             if (state.countyData) {
                 document.getElementById('map').innerHTML = '';
                 renderMap(state.countyData);
+
+                // Re-apply state zoom if selected
+                if (state.selectedState) {
+                    setTimeout(() => zoomToState(state.selectedState), 100);
+                }
             }
         }, 250));
     }

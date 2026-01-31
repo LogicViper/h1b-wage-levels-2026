@@ -192,6 +192,45 @@ body {
     color: var(--color-text-muted);
 }
 
+/* ===== Input with Clear Button ===== */
+.input-with-clear {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-with-clear .filter-input,
+.input-with-clear .filter-select {
+    flex: 1;
+    padding-right: 32px;
+}
+
+.input-clear-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: var(--color-text-muted);
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 10px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    opacity: 0.7;
+}
+
+.input-clear-btn:hover {
+    background: var(--color-primary);
+    opacity: 1;
+}
+
 /* ===== Main Content ===== */
 .main-content {
     display: flex;
@@ -248,6 +287,48 @@ body {
     min-height: 300px;
     font-size: 1rem;
     color: var(--color-text-light);
+}
+
+/* ===== Zoom Controls ===== */
+.zoom-controls {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 50;
+}
+
+.zoom-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: var(--color-dark);
+    color: white;
+    font-size: 1.25rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    box-shadow: var(--shadow-md);
+}
+
+.zoom-btn:hover {
+    background: var(--color-primary);
+    transform: scale(1.05);
+}
+
+.zoom-btn:active {
+    transform: scale(0.95);
+}
+
+.zoom-reset {
+    font-size: 1rem;
+    margin-top: 4px;
 }
 
 /* ===== County Styling ===== */
@@ -364,10 +445,38 @@ body {
     opacity: 1;
 }
 
+.tooltip.locked {
+    pointer-events: auto;
+}
+
+.tooltip-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+
+.tooltip-close:hover {
+    background: var(--color-primary);
+}
+
 .tooltip-title {
     font-weight: 600;
     margin-bottom: var(--spacing-sm);
     padding-bottom: var(--spacing-sm);
+    padding-right: 24px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
@@ -377,6 +486,21 @@ body {
 
 .tooltip-content strong {
     color: #fca5a5;
+}
+
+.tooltip-level {
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    text-align: center;
+}
+
+/* ===== County Labels ===== */
+.county-label {
+    font-family: var(--font-family);
+    pointer-events: none;
+    user-select: none;
 }
 
 /* ===== Footer ===== */
