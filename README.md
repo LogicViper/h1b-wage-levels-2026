@@ -2,7 +2,7 @@
 
 An interactive visualization tool to understand your position under the H1B wage-weighted selection framework for 2026.
 
-![H1B Wage Levels Dashboard](https://raw.githubusercontent.com/sriksven/h1b-wage-levels-2026/main/.github/preview.png)
+
 
 ## Live Demo
 
