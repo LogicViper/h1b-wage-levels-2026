@@ -187,6 +187,37 @@
             }
         }
 
+        // Manual override for Connecticut (Old Counties -> New Planning Regions)
+        // CT switched from Counties to Planning Regions in recent census data, causing mismatches
+        const ctMapping = {
+            // Fairfield -> Bridgeport-Stamford-Danbury
+            'Fairfield County|CT': '14860',
+            'fairfield|CT': '14860',
+            // Hartford -> Hartford-West Hartford
+            'Hartford County|CT': '25540',
+            'hartford|CT': '25540',
+            // Litchfield -> Northwest Hills (Nonmetro)
+            'Litchfield County|CT': '900001',
+            'litchfield|CT': '900001',
+            // Middlesex -> Hartford-West Hartford (Lower CT River Valley)
+            'Middlesex County|CT': '25540',
+            'middlesex|CT': '25540',
+            // New Haven -> New Haven
+            'New Haven County|CT': '35300',
+            'new haven|CT': '35300',
+            // New London -> Norwich-New London
+            'New London County|CT': '35980',
+            'new london|CT': '35980',
+            // Tolland -> Hartford-West Hartford (Capitol Region covers most)
+            'Tolland County|CT': '25540',
+            'tolland|CT': '25540',
+            // Windham -> Northeastern CT (Nonmetro)
+            'Windham County|CT': '900001',
+            'windham|CT': '900001'
+        };
+
+        Object.assign(state.countyToArea, ctMapping);
+
 
         // Sort counties within each state
         for (const st in state.stateCounties) {
