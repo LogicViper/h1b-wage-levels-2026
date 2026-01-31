@@ -957,7 +957,8 @@
      * Get color for a county based on wage level
      */
     function getCountyColor(county) {
-        const fips = county.id;
+        // Ensure ID is treated as a 5-digit string (handles numeric IDs safely)
+        const fips = String(county.id).padStart(5, '0');
         const fipsState = fips.substring(0, 2);
         const stateAbbr = WageData.fipsToState[fipsState];
 
@@ -998,7 +999,7 @@
             case 2: return CONFIG.colors.level2;
             case 3: return CONFIG.colors.level3;
             case 4: return CONFIG.colors.level4;
-            default: return CONFIG.colors.noData;
+            default: return CONFIG.colors.levelBelow;
         }
     }
 
@@ -1131,7 +1132,7 @@
      * Handle county click
      */
     function handleCountyClick(event, d) {
-        const fips = d.id;
+        const fips = String(d.id).padStart(5, '0');
         const fipsState = fips.substring(0, 2);
         const stateAbbr = WageData.fipsToState[fipsState];
         const countyName = d.properties?.name || `County ${fips}`;
