@@ -145,6 +145,49 @@
             }
         }
 
+        // Pass 2: Ingest from WageData.geography to ensure 100% coverage
+        // This covers "Balance of State" areas and any counties missing from counties.json
+        if (WageData.geography) {
+            for (const [areaCode, areaData] of Object.entries(WageData.geography)) {
+                if (areaData.counties && Array.isArray(areaData.counties)) {
+                    areaData.counties.forEach(cName => {
+                        const stateAbbr = areaData.state;
+                        // Use the full name (e.g. "St. Francis County")
+                        const mapKey = `${cName}|${stateAbbr}`;
+                        if (!state.countyToArea[mapKey]) {
+                            state.countyToArea[mapKey] = areaCode;
+                        }
+
+                        // Generate normalized keys
+                        const cleanCounty = cName.toLowerCase()
+                            .replace(' county', '')
+                            .replace(' parish', '')
+                            .replace(' borough', '')
+                            .replace(' census area', '')
+                            .replace(' city', '')
+                            .replace(/\./g, '')
+                            .replace(/'/g, '')
+                            .trim();
+
+                        const mapKeyNorm = `${cleanCounty}|${stateAbbr}`;
+                        if (!state.countyToArea[mapKeyNorm]) {
+                            state.countyToArea[mapKeyNorm] = areaCode;
+                        }
+
+                        // Handle Saint/St variations
+                        if (cleanCounty.includes('st ')) {
+                            const saintCounty = cleanCounty.replace('st ', 'saint ');
+                            state.countyToArea[`${saintCounty}|${stateAbbr}`] = areaCode;
+                        } else if (cleanCounty.includes('saint ')) {
+                            const stCounty = cleanCounty.replace('saint ', 'st ');
+                            state.countyToArea[`${stCounty}|${stateAbbr}`] = areaCode;
+                        }
+                    });
+                }
+            }
+        }
+
+
         // Sort counties within each state
         for (const st in state.stateCounties) {
             state.stateCounties[st].sort((a, b) => a.county.localeCompare(b.county));
